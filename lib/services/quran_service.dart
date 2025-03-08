@@ -74,4 +74,28 @@ class QuranService {
     allSurahs.shuffle();
     return allSurahs.take(count).toList();
   }
+
+  static Future<List<dynamic>> searchAyat(String query) async {
+    List<dynamic> allSurahs = await getAllSurahs();
+    List<dynamic> searchResults = [];
+
+    for (var surah in allSurahs) {
+      var ayatList = await getAyatBySurah(surah['nomor']);
+      for (var ayat in ayatList) {
+        if (ayat['ar'].contains(query) ||
+            ayat['tr'].contains(query) ||
+            ayat['idn'].contains(query)) {
+          searchResults.add({
+            'surah': surah['nama'],
+            'surahNomor': surah['nomor'],
+            'ayatNomor': ayat['nomor'],
+            'textArab': ayat['ar'],
+            'terjemahan': ayat['idn'],
+          });
+        }
+      }
+    }
+
+    return searchResults;
+  }
 }

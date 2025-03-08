@@ -86,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
     );
   }
-
+  
   Widget buildHeader() {
     return Container(
       padding: EdgeInsets.fromLTRB(20, 24, 20, 30),
