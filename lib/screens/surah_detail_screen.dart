@@ -19,7 +19,10 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   final ValueNotifier<Duration> _position = ValueNotifier(Duration.zero);
   final ValueNotifier<Duration> _duration = ValueNotifier(Duration.zero);
   final ValueNotifier<bool> _isPlaying = ValueNotifier(false);
-  int currentSurahIndex = 0;
+  late int currentSurahIndex;
+
+  // Define the primary color
+  final Color primaryColor = Color(0xFF2563EB);
 
   @override
   void initState() {
@@ -29,19 +32,12 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     );
     fetchAyat();
 
-    _audioPlayer.onDurationChanged.listen((d) {
-      _duration.value = d;
-    });
-
-    _audioPlayer.onPositionChanged.listen((p) {
-      _position.value = p;
-    });
-
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      _isPlaying.value = state == PlayerState.playing;
-    });
-
-    _audioPlayer.onPlayerComplete.listen((event) {
+    _audioPlayer.onDurationChanged.listen((d) => _duration.value = d);
+    _audioPlayer.onPositionChanged.listen((p) => _position.value = p);
+    _audioPlayer.onPlayerStateChanged.listen(
+      (state) => _isPlaying.value = state == PlayerState.playing,
+    );
+    _audioPlayer.onPlayerComplete.listen((_) {
       _isPlaying.value = false;
       _position.value = Duration.zero;
     });
@@ -54,8 +50,9 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   }
 
   Future<void> fetchAyat() async {
-    String surahNomor = widget.surah['nomor'].toString();
-    final fetchedAyat = await QuranService.getAyatBySurah(surahNomor);
+    final fetchedAyat = await QuranService.getAyatBySurah(
+      widget.surah['nomor'].toString(),
+    );
     setState(() {
       ayatList = fetchedAyat;
       isLoading = false;
@@ -75,81 +72,206 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     }
   }
 
-  String formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    return "${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}";
-  }
-
   void showAudioModal() {
     showModalBottomSheet(
       context: context,
       isDismissible: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          padding: EdgeInsets.all(16),
-          height: 250,
+          padding: EdgeInsets.all(20),
+          height: 280,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
           ),
           child: Column(
             children: [
-              Text(
-                'Sedang Memutar: ${widget.surah['nama_latin']}',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Container(
+                height: 5,
+                width: 40,
+                margin: EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              SizedBox(height: 10),
+              Text(
+                widget.surah['nama_latin'],
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+              SizedBox(height: 5),
+              Text(
+                'Sedang Memutar',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 20),
               ValueListenableBuilder<Duration>(
                 valueListenable: _position,
                 builder: (context, position, child) {
                   return ValueListenableBuilder<Duration>(
                     valueListenable: _duration,
                     builder: (context, duration, child) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      return Column(
                         children: [
-                          Text(formatDuration(position)),
-                          Expanded(
+                          SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 4,
+                              thumbShape: RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
+                              overlayShape: RoundSliderOverlayShape(
+                                overlayRadius: 14,
+                              ),
+                              activeTrackColor: primaryColor,
+                              inactiveTrackColor: Colors.grey[200],
+                              thumbColor: primaryColor,
+                              overlayColor: primaryColor.withOpacity(0.2),
+                            ),
                             child: Slider(
                               value: position.inSeconds.toDouble(),
-                              max: duration.inSeconds.toDouble(),
+                              max:
+                                  duration.inSeconds > 0
+                                      ? duration.inSeconds.toDouble()
+                                      : 1.0,
                               onChanged: (value) async {
-                                final newPosition = Duration(
-                                  seconds: value.toInt(),
+                                await _audioPlayer.seek(
+                                  Duration(seconds: value.toInt()),
                                 );
-                                await _audioPlayer.seek(newPosition);
-                                _position.value = newPosition;
                               },
                             ),
                           ),
-                          Text(formatDuration(duration)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  formatDuration(position),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  formatDuration(duration),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       );
                     },
                   );
                 },
               ),
-              SizedBox(height: 10),
+              SizedBox(height: 20),
               ValueListenableBuilder<bool>(
                 valueListenable: _isPlaying,
                 builder: (context, isPlaying, child) {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.skip_previous, size: 30),
-                        onPressed: previousSurah,
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          isPlaying ? Icons.pause : Icons.play_arrow,
-                          size: 40,
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(50),
+                          onTap: currentSurahIndex > 0 ? previousSurah : null,
+                          child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  currentSurahIndex > 0
+                                      ? Colors.grey[100]
+                                      : Colors.grey[50],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.skip_previous_rounded,
+                              size: 28,
+                              color:
+                                  currentSurahIndex > 0
+                                      ? primaryColor
+                                      : Colors.grey[400],
+                            ),
+                          ),
                         ),
-                        onPressed: togglePlayPause,
                       ),
-                      IconButton(
-                        icon: Icon(Icons.skip_next, size: 30),
-                        onPressed: nextSurah,
+                      SizedBox(width: 20),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(50),
+                          onTap: togglePlayPause,
+                          child: Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: primaryColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryColor.withOpacity(0.4),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 32,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 20),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(50),
+                          onTap:
+                              currentSurahIndex < widget.allSurahs.length - 1
+                                  ? nextSurah
+                                  : null,
+                          child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  currentSurahIndex <
+                                          widget.allSurahs.length - 1
+                                      ? Colors.grey[100]
+                                      : Colors.grey[50],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.skip_next_rounded,
+                              size: 28,
+                              color:
+                                  currentSurahIndex <
+                                          widget.allSurahs.length - 1
+                                      ? primaryColor
+                                      : Colors.grey[400],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -162,110 +284,214 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     ).whenComplete(() => _audioPlayer.stop());
   }
 
-  void nextSurah() async {
+  void nextSurah() {
     if (currentSurahIndex < widget.allSurahs.length - 1) {
-      _audioPlayer.stop();
-      setState(() => currentSurahIndex++);
-      Navigator.pop(context);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => SurahDetailScreen(
-                surah: widget.allSurahs[currentSurahIndex],
-                allSurahs: widget.allSurahs,
-              ),
-        ),
-      );
+      _navigateToSurah(++currentSurahIndex);
     }
   }
 
-  void previousSurah() async {
+  void previousSurah() {
     if (currentSurahIndex > 0) {
-      _audioPlayer.stop();
-      setState(() => currentSurahIndex--);
-      Navigator.pop(context);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => SurahDetailScreen(
-                surah: widget.allSurahs[currentSurahIndex],
-                allSurahs: widget.allSurahs,
-              ),
-        ),
-      );
+      _navigateToSurah(--currentSurahIndex);
     }
+  }
+
+  void _navigateToSurah(int index) {
+    _audioPlayer.stop();
+    Navigator.pop(context);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => SurahDetailScreen(
+              surah: widget.allSurahs[index],
+              allSurahs: widget.allSurahs,
+            ),
+      ),
+    );
+  }
+
+  String formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    return "${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.surah['nama_latin'] ?? 'Surah Tanpa Nama'),
-        backgroundColor: Colors.green[700],
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.surah['nama_latin'] ?? 'Surah Tanpa Nama',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            if (widget.surah['arti'] != null)
+              Text(
+                widget.surah['arti'],
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              ),
+          ],
+        ),
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(Icons.play_circle_fill),
-            onPressed: showAudioModal,
-            tooltip: "Putar Surah",
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.play_circle_outline_rounded, size: 28),
+              onPressed: showAudioModal,
+              tooltip: "Putar Surah",
+            ),
           ),
         ],
       ),
-      body:
+      body: Stack(
+        children: [
+          // Background design element
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          // Content
           isLoading
-              ? Center(child: CircularProgressIndicator())
+              ? Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                ),
+              )
               : Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: ListView.builder(
+                  physics: BouncingScrollPhysics(),
                   itemCount: ayatList.length,
                   itemBuilder: (context, index) {
                     final ayat = ayatList[index];
+                    final ayatNumber = ayat['nomor'].toString();
 
-                    return Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.05),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
-                      elevation: 3,
-                      margin: EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ayat ${ayat['nomor'].toString()}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green[800],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Ayat number container
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                topRight: Radius.circular(16),
                               ),
                             ),
-                            SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: primaryColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      ayatNumber,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Arabic text
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                            child: Align(
+                              alignment:
+                                  Alignment
+                                      .centerRight, // Memastikan teks rata kanan
                               child: Text(
                                 ayat['ar'] ?? '',
                                 style: TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 28,
+                                  height: 1.5,
                                   fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
                                 ),
-                                textAlign: TextAlign.right,
+                                textAlign: TextAlign.right, // Rata kanan
+                                textDirection:
+                                    TextDirection
+                                        .rtl, // Arah teks dari kanan ke kiri
                               ),
                             ),
-                            SizedBox(height: 8),
-                            Text(
+                          ),
+                          Divider(
+                            color: Colors.grey[200],
+                            thickness: 1,
+                            indent: 16,
+                            endIndent: 16,
+                          ),
+                          // Translation
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Text(
                               ayat['idn'] ?? '',
-                              style: TextStyle(fontSize: 16),
+                              style: TextStyle(
+                                fontSize: 16,
+                                height: 1.5,
+                                color: Colors.black54,
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     );
                   },
                 ),
               ),
+        ],
+      ),
+      floatingActionButton:
+          !isLoading
+              ? FloatingActionButton(
+                onPressed: showAudioModal,
+                backgroundColor: primaryColor,
+                child: Icon(Icons.play_arrow_rounded),
+                tooltip: "Putar Audio",
+                elevation: 4,
+              )
+              : null,
     );
   }
 }
